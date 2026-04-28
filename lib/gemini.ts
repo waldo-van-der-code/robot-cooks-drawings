@@ -204,21 +204,14 @@ function assessSvgQuality(svg: string): { pass: boolean; reason: string } {
   return { pass: true, reason: `path=${pathCount} ellipse=${ellipseCount} circle=${circleCount}` };
 }
 
-export async function generateSVG(params: {
-  prompt: string;
-  preset: Preset;
-  orientation: Orientation;
-  margin_mm: number;
-  line_weight_mm: number;
-}): Promise<string> {
-  const dim = A4_DIMENSIONS[params.orientation];
-  const m = params.margin_mm;
-  // Safe drawing area in user units
+function buildSvgSystemInstruction(
+  dim: { w: string; h: string; vw: number; vh: number },
+  m: number,
+): string {
   const drawX = m, drawY = m;
   const drawW = dim.vw - m * 2;
   const drawH = dim.vh - m * 2;
-
-  const systemInstruction = `You are a professional children's book illustrator creating high-quality A4 coloring pages in the style of published Scholastic or Dover kids coloring books.
+  return `You are a professional children's book illustrator creating high-quality A4 coloring pages in the style of published Scholastic or Dover kids coloring books.
 
 OUTPUT RULES — follow exactly:
 1. Output ONLY the raw SVG element. No markdown fences, no prose, no XML comments outside the SVG.
@@ -268,7 +261,18 @@ REQUIRED STRUCTURE:
     <!-- all character artwork using organic Bezier paths -->
   </g>
 </svg>`;
+}
 
+export async function generateSVG(params: {
+  prompt: string;
+  preset: Preset;
+  orientation: Orientation;
+  margin_mm: number;
+  line_weight_mm: number;
+}): Promise<string> {
+  const dim = A4_DIMENSIONS[params.orientation];
+  const m = params.margin_mm;
+  const systemInstruction = buildSvgSystemInstruction(dim, m);
   const userPrompt = buildKidFriendlyPrompt(params.prompt, params.preset, params.orientation);
 
   const buildRequest = (): GenerateContentRequest => ({
