@@ -44,3 +44,4 @@ supabase/.temp
 
 # Claude Code internal config
 .claude/
+_local/
