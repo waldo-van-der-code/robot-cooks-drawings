@@ -1,0 +1,28 @@
+default_permissions = "personal-workspace"
+approval_policy = "on-request"
+approvals_reviewer = "auto_review"
+
+[mcp_servers.notion-vanderlore]
+command = "/opt/homebrew/bin/python3"
+args = ["/Users/waldo.vanderhaeghen/Documents/AI-projects-personal/Organization/agent-setup/mcp_launch.py", "notion-vanderlore"]
+startup_timeout_sec = 60
+tool_timeout_sec = 60
+
+[mcp_servers.serper]
+command = "/opt/homebrew/bin/python3"
+args = ["/Users/waldo.vanderhaeghen/Documents/AI-projects-personal/Organization/agent-setup/mcp_launch.py", "serper"]
+startup_timeout_sec = 60
+tool_timeout_sec = 60
+
+[mcp_servers.rechtsinformationen-bund-de]
+command = "/opt/homebrew/bin/python3"
+args = ["/Users/waldo.vanderhaeghen/Documents/AI-projects-personal/Organization/agent-setup/mcp_launch.py", "rechtsinformationen-bund-de"]
+startup_timeout_sec = 60
+tool_timeout_sec = 60
+
+[mcp_servers.open-brain]
+url = "http://localhost:8000"
+enabled = true
+startup_timeout_sec = 30
+tool_timeout_sec = 60
+
