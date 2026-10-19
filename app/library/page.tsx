@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { readJson } from '@/lib/read-json';
 import type { DrawingResult, Orientation } from '@/lib/types';
 
 const PAGE_SIZE = 18;
@@ -47,7 +48,7 @@ export default function LibraryPage() {
           orientation: orientation || undefined,
         }),
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.error ?? 'Search failed');
       setResults(prev => append ? [...prev, ...data.results] : data.results);
       setHasMore(data.results.length === PAGE_SIZE);

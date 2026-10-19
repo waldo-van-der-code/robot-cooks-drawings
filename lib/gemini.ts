@@ -8,7 +8,7 @@ import {
 import type { Orientation, Preset, DrawingMetadata } from './types';
 import { normalizeSVG, hasOpenPaths } from './svg-normalize';
 import { generateWithGroq, isGroqAvailable } from './groq';
-import { generateImageWithHf, isHfImageAvailable } from './hf-image';
+import { generateImageWithCloudflare, isCloudflareAiAvailable } from './cloudflare-ai';
 
 // Image generation models — ranked best→worst for coloring page illustration quality.
 const IMAGE_CANDIDATE_MODELS = [
@@ -385,19 +385,14 @@ export async function generateImage(params: {
       return { imageBase64: imagePart.inlineData.data, mimeType: 'image/png' };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('404') || msg.includes('429') || msg.includes('503')) {
-        console.warn(`[gemini:generateImage] Model ${modelName} unavailable: ${msg.slice(0, 150)}`);
-        lastError = err;
-        continue;
-      }
-      console.error(`[gemini:generateImage] Non-retriable error from ${modelName}: ${msg}`);
-      throw err;
+      console.warn(`[gemini:generateImage] Model ${modelName} failed: ${msg.slice(0, 150)}`);
+      lastError = err;
     }
   }
-  // Fallback to HuggingFace if Gemini image models are unavailable (pay-only / region-blocked)
-  if (isHfImageAvailable()) {
-    console.warn('[gemini:generateImage] All Gemini image models failed, falling back to HuggingFace');
-    return generateImageWithHf(params);
+  // Fallback to Cloudflare Workers AI if Gemini image models are unavailable (free tier has 0 image quota)
+  if (isCloudflareAiAvailable()) {
+    console.warn('[gemini:generateImage] All Gemini image models failed, falling back to Cloudflare Workers AI');
+    return generateImageWithCloudflare(params);
   }
 
   throw new Error(`All image models failed. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);

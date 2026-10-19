@@ -3,7 +3,7 @@ import type { Handler } from '@netlify/functions';
 export const handler: Handler = async () => {
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'NOT_SET';
   const keyPresent = !!(process.env.SUPABASE_SERVICE_ROLE_KEY);
-  const hfKeyPresent = !!(process.env.HF_API_KEY);
+  const cfAiConfigured = !!(process.env.CF_ACCOUNT_ID && process.env.CF_AI_TOKEN);
 
   let supabaseReachable = false;
   let supabaseError = '';
@@ -24,7 +24,7 @@ export const handler: Handler = async () => {
     body: JSON.stringify({
       supabaseUrl: url,
       serviceRoleKeyPresent: keyPresent,
-      hfApiKeyPresent: hfKeyPresent,
+      cfAiConfigured,
       supabaseReachable,
       supabaseStatus: supabaseError,
       nodeVersion: process.version,

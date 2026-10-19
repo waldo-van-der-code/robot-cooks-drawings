@@ -15,23 +15,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'query is required' }, { status: 400 });
     }
 
-    const queryEmbedding = await embedQuery(query);
-    const vectorLiteral = `[${queryEmbedding.join(',')}]`;
-
     const supabase = createServerSupabase();
-    const { data, error } = await supabase.rpc('match_drawings', {
-      query_embedding: vectorLiteral,
-      match_count: limit,
-      match_offset: offset,
-      filter_tags: tags ?? null,
-      filter_orientation: orientation ?? null,
-    });
 
-    if (error) throw new Error(`search RPC error: ${error.message}`);
+    // If the embedding provider is down, still show the library via the table scan below.
+    let queryEmbedding: number[] | null = null;
+    try {
+      queryEmbedding = await embedQuery(query);
+    } catch (err) {
+      console.error('[search] embedding failed — falling back to direct table scan', err);
+    }
+
+    let rows: Record<string, unknown>[] = [];
+
+    if (queryEmbedding) {
+      const { data, error } = await supabase.rpc('match_drawings', {
+        query_embedding: `[${queryEmbedding.join(',')}]`,
+        match_count: limit,
+        match_offset: offset,
+        filter_tags: tags ?? null,
+        filter_orientation: orientation ?? null,
+      });
+
+      if (error) throw new Error(`search RPC error: ${error.message}`);
+      rows = data ?? [];
+    }
 
     // IVFFLAT index requires lists=100 minimum rows — returns empty with small datasets.
     // Fall back to a direct table scan when the RPC returns nothing.
-    let rows: Record<string, unknown>[] = data ?? [];
 
     if (rows.length === 0) {
       console.warn('[search] RPC returned 0 results — falling back to direct table scan');

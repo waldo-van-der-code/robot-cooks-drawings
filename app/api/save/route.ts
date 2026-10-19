@@ -10,6 +10,37 @@ import type { SaveRequest } from '@/lib/types';
 export const runtime = 'nodejs';
 export const maxDuration = 120;
 
+// Netlify kills synchronous functions at 60s and answers with an HTML page, which the
+// client cannot parse. Cap the slowest step so the route always returns JSON in time.
+const METADATA_TIMEOUT_MS = 25_000;
+
+type Metadata = Awaited<ReturnType<typeof extractMetadata>>;
+
+async function extractMetadataOrFallback(
+  params: Parameters<typeof extractMetadata>[0],
+  orientation: string,
+): Promise<Metadata> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`metadata extraction exceeded ${METADATA_TIMEOUT_MS}ms`)), METADATA_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([extractMetadata(params), timeout]);
+  } catch (err) {
+    console.warn('[POST /api/save] metadata extraction failed, saving without it:', err);
+    return {
+      depiction_summary: params.prompt,
+      tags: [],
+      objects: [],
+      style: { stroke_style: '', fill_style: '', complexity: '', aesthetic: '' },
+      page: { orientation, layout: '', composition: '' },
+      raw_model_output: null,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body: SaveRequest = await req.json();
@@ -35,21 +66,23 @@ export async function POST(req: NextRequest) {
       isImageArtifact
         ? imageToThumbnail(imageBase64!, orientation)
         : svgToThumbnail(svg!, orientation),
-      extractMetadata({ prompt, svg, imageBase64 }),
+      extractMetadataOrFallback({ prompt, svg, imageBase64 }, orientation),
     ]);
 
     const embeddingText = [prompt, metadata.depiction_summary, metadata.tags.join(', ')]
       .filter(Boolean)
       .join('. ');
 
+    // Embed before uploading so a provider failure leaves no orphaned files in storage.
+    const embedding = await generateEmbedding(embeddingText);
+
     // Store source file: PNG for image artifacts, SVG for dots.
-    const [sourcePath, pdfPath, thumbPath, embedding] = await Promise.all([
+    const [sourcePath, pdfPath, thumbPath] = await Promise.all([
       isImageArtifact
         ? uploadFile(BUCKETS.SVG, `${basePath}.png`, Buffer.from(imageBase64!, 'base64'), 'image/png')
         : uploadFile(BUCKETS.SVG, `${basePath}.svg`, svg!, 'image/svg+xml'),
       uploadFile(BUCKETS.PDF,   `${basePath}.pdf`, pdfBuffer,   'application/pdf'),
       uploadFile(BUCKETS.THUMB, `${basePath}.png`, thumbBuffer, 'image/png'),
-      generateEmbedding(embeddingText),
     ]);
 
     const supabase = createServerSupabase();

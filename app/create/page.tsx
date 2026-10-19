@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { readJson } from '@/lib/read-json';
 import type { Preset, Orientation, GenerateArtifact } from '@/lib/types';
 
 const PRESETS: { value: Preset; label: string; description: string }[] = [
@@ -65,7 +66,7 @@ export default function CreatePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.error ?? 'Save failed');
       setSavedId(data.id);
       setSaveStatus('saved');
@@ -107,7 +108,7 @@ export default function CreatePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt, preset, orientation, margin_mm: 10, line_weight_mm: lineWeight }),
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok) throw new Error(data.error ?? 'Generation failed');
 
       const art: GenerateArtifact = data.artifact;

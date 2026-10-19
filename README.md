@@ -19,8 +19,8 @@ AI-powered A4 coloring page generator for kids. Describe what you want, get a pr
 | Hosting | Netlify |
 | Database | Supabase (Postgres + pgvector) |
 | Storage | Supabase Storage |
-| AI generation | Google Gemini API |
-| Embeddings | Hugging Face (`BAAI/bge-small-en-v1.5`, 384-dim) |
+| AI generation | Google Gemini API (image fallback: Cloudflare Workers AI FLUX.1 schnell) |
+| Embeddings | Cloudflare Workers AI (`@cf/baai/bge-small-en-v1.5`, 384-dim) |
 | PDF generation | Puppeteer + `@sparticuz/chromium` |
 | Styling | Tailwind CSS |
 | Package manager | pnpm |
@@ -38,7 +38,8 @@ cp .env.example .env.local
 | Variable | Where to get it | Client-safe? |
 |---|---|---|
 | `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/app/apikey) | **Never** |
-| `HF_API_KEY` | [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) | **Never** |
+| `CF_ACCOUNT_ID` | Cloudflare dashboard → account ID | No |
+| `CF_AI_TOKEN` | Cloudflare → API Tokens → custom token with **Workers AI Read** | **Never** |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Settings → API | Yes |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API | Yes |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API | **Never** |
@@ -99,19 +100,19 @@ Open [http://localhost:3000](http://localhost:3000).
 1. Puppeteer renders SVG → PDF at A4 dimensions
 2. Puppeteer renders SVG → PNG thumbnail
 3. Gemini extracts structured metadata (tags, objects, style, scene summary)
-4. Hugging Face embeds the metadata text → 384-dim vector
+4. Cloudflare Workers AI embeds the metadata text → 384-dim vector
 5. SVG, PDF, thumbnail uploaded to Supabase Storage
 6. `drawings`, `drawing_metadata`, `drawing_embeddings` rows inserted
 
 ### Semantic search (`/api/search`)
 
-- Query is embedded with the same HF model (384-dim)
+- Query is embedded with the same Workers AI model (384-dim)
 - `match_drawings` SQL function does cosine similarity search via pgvector HNSW index
 - Falls back to direct table scan if vector search returns empty (useful for small datasets)
 
 ### Security
 
-- `GEMINI_API_KEY` and `HF_API_KEY` are server-only — never in client bundles
+- `GEMINI_API_KEY` and `CF_AI_TOKEN` are server-only — never in client bundles
 - `SUPABASE_SERVICE_ROLE_KEY` only used server-side in `lib/supabase/server.ts`
 - File downloads use short-lived signed URLs generated server-side
 
@@ -135,7 +136,7 @@ Open [http://localhost:3000](http://localhost:3000).
 │   └── globals.css
 ├── lib/
 │   ├── gemini.ts                      # SVG generation + metadata extraction
-│   ├── embeddings.ts                  # HF embeddings (384-dim)
+│   ├── embeddings.ts                  # Workers AI embeddings (384-dim)
 │   ├── pdf.ts                         # Puppeteer SVG→PDF + thumbnail
 │   ├── storage.ts                     # Supabase Storage helpers
 │   ├── svg-normalize.ts               # Post-generation SVG cleanup
