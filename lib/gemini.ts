@@ -69,6 +69,12 @@ async function getAvailableModels(): Promise<string[]> {
   return _availableModels;
 }
 
+function thinkingConfigFor(modelName: string): Record<string, unknown> | null {
+  if (modelName.startsWith('gemini-3')) return { thinkingLevel: 'low' };
+  if (modelName.startsWith('gemini-2.5-flash')) return { thinkingBudget: 0 };
+  return null; // 2.0 models don't think; 2.5 Pro can't switch thinking off
+}
+
 async function generateWithFallback(
   label: string,
   buildRequest: () => GenerateContentRequest
@@ -105,7 +111,13 @@ async function generateWithFallback(
     try {
       console.log(`[gemini:${label}] Trying model: ${modelName}`);
       const model = client.getGenerativeModel({ model: modelName, safetySettings: SAFETY_SETTINGS });
-      const result = await model.generateContent(request);
+      // Thinking models reason at length by default: a Magic Dots SVG took 45-53 s on
+      // Gemini 3 Flash, past Netlify's 30 s limit. Low/no thinking gives the same drawings in ~10 s.
+      const thinkingConfig = thinkingConfigFor(modelName);
+      const result = await model.generateContent(thinkingConfig ? {
+        ...request,
+        generationConfig: { ...request.generationConfig, thinkingConfig } as GenerateContentRequest['generationConfig'],
+      } : request);
       const text = result.response.text().trim();
       console.log(`[gemini:${label}] SUCCESS with ${modelName} — output length: ${text.length} chars`);
       console.log(`[gemini:${label}] Output preview:\n${text.slice(0, 400)}${text.length > 400 ? '\n…' : ''}`);
@@ -113,7 +125,9 @@ async function generateWithFallback(
       return text;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      const isRetriable = msg.includes('404') || msg.includes('503') || (msg.includes('429') && msg.includes('limit: 0'));
+      // Any 429 moves on: the free tier caps each model per day (e.g. 20 for gemini-3-flash),
+      // so waiting would not help within one request.
+      const isRetriable = msg.includes('404') || msg.includes('503') || msg.includes('429');
       if (isRetriable) {
         console.warn(`[gemini:${label}] Model ${modelName} unavailable, trying next. Reason: ${msg.slice(0, 150)}`);
         lastError = err;

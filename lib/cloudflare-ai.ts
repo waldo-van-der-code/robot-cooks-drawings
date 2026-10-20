@@ -58,7 +58,13 @@ export async function generateImageWithCloudflare(params: {
 
   // FLUX returns a square JPEG; the rest of the app stores and serves PNG.
   // The PDF and thumbnail steps letterbox it onto the A4 page.
-  const png = await sharp(Buffer.from(result.image, 'base64')).png().toBuffer();
+  // FLUX often tints the page (e.g. pale yellow fills) despite the prompt. Drop the colour and
+  // stretch the levels so luminance <= 60 becomes black and >= 220 white, keeping smooth edges.
+  const png = await sharp(Buffer.from(result.image, 'base64'))
+    .grayscale()
+    .linear(255 / 160, -60 * 255 / 160)
+    .png()
+    .toBuffer();
   const imageBase64 = png.toString('base64');
   console.log(`[cf-image] SUCCESS with ${IMAGE_MODEL} — ${imageBase64.length} base64 chars`);
   return { imageBase64, mimeType: 'image/png' };

@@ -1,19 +1,22 @@
 // SERVER-SIDE ONLY — Groq fallback for SVG generation.
-// Uses free-tier models only: llama-3.3-70b-versatile and llama-4-scout-17b-16e-instruct.
+// Uses free-tier models only (Groq retired the Llama 3.3 / 4 Scout models this used before).
 import Groq from 'groq-sdk';
 
+// Netlify has the key as lowercase `groq_api_key`.
+function getKey(): string | undefined {
+  return process.env.GROQ_API_KEY || process.env.groq_api_key;
+}
+
 function getClient(): Groq {
-  const key = process.env.GROQ_API_KEY;
+  const key = getKey();
   if (!key) throw new Error('GROQ_API_KEY is not set');
   return new Groq({ apiKey: key });
 }
 
 // Free-tier models ranked best→worst for SVG generation quality.
-// llama-3.3-70b-versatile: 32k output, strongest instruction following of the free tier.
-// llama-4-scout-17b-16e-instruct: fast, 32k output, good fallback.
 const GROQ_MODELS = [
-  'llama-3.3-70b-versatile',
-  'llama-4-scout-17b-16e-instruct',
+  'openai/gpt-oss-120b',
+  'qwen/qwen3.8-27b',
 ];
 
 export async function generateWithGroq(
@@ -34,6 +37,8 @@ export async function generateWithGroq(
         ],
         temperature: 0.4,
         max_tokens: 32768,
+        // gpt-oss reasons at medium effort by default, which sometimes took 46 s.
+        ...(model.startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' as const } : {}),
       });
 
       const text = completion.choices[0]?.message?.content?.trim() ?? '';
@@ -51,5 +56,5 @@ export async function generateWithGroq(
 }
 
 export function isGroqAvailable(): boolean {
-  return Boolean(process.env.GROQ_API_KEY);
+  return Boolean(getKey());
 }
